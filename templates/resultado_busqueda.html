@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Resultado de Búsqueda{% endblock %}
+
+{% block content %}
+<h1>Resultado de Búsqueda</h1>
+{% if usuario %}
+    <div class="alert alert-success" role="alert">
+        Usuario encontrado: {{ usuario.nombre }} (Cédula: {{ usuario.cedula }})
+    </div>
+    <a href="{{ url_for('obtener_certificado', cedula=usuario.cedula) }}" class="btn btn-primary">Crear Certificado</a>
+{% elif mensaje %}
+    <div class="alert alert-danger" role="alert">
+        {{ mensaje }}
+    </div>
+    <a href="{{ url_for('crear_datos') }}" class="btn btn-primary">Crear Nuevo Usuario</a>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Buscar Certificado{% endblock %}
+
+{% block content %}
+<h1>Buscar Certificado</h1>
+<form method="POST" action="{{ url_for('buscar_certificado') }}">
+    <div class="form-group">
+        <label for="cedula">Cédula:</label>
+        <input type="text" id="cedula" name="cedula" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Buscar Certificado</button>
+</form>
+{% endblock %}
