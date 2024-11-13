@@ -1,6 +1,12 @@
 from flask import Flask, request, send_file, render_template, redirect, url_for
 from database import SessionLocal, Usuario
 import pdfkit
+import pandas as pd
+import os
+import csv
+from io import StringIO
+from flask import Response
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -102,6 +108,70 @@ def buscar_certificado():
     
     return render_template("buscar_cert.html")
 
+
+# Crear la carpeta 'uploads' si no existe
+if not os.path.exists('uploads'):
+    os.makedirs('uploads')
+#  ruta para cargar y procesar archivos CSV
+@app.route("/cargar_csv", methods=["GET", "POST"])
+def cargar_csv():
+    if request.method == "POST":
+        if 'file' not in request.files:
+            return {"mensaje": "No se ha subido ningún archivo"}, 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return {"mensaje": "No se ha seleccionado ningún archivo"}, 400
+        
+        if file and file.filename.endswith('.csv'):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join('uploads', filename)
+            file.save(filepath)
+            
+            # Procesar el archivo CSV
+            data = pd.read_csv(filepath)
+            session = SessionLocal()
+            for index, row in data.iterrows():
+                usuario_existente = session.query(Usuario).filter(Usuario.cedula == row['cedula']).first()
+                if not usuario_existente:
+                    nuevo_usuario = Usuario(
+                        nombre=row['nombre'],
+                        cedula=row['cedula'],
+                        info_adicional=row['info_adicional']
+                    )
+                    session.add(nuevo_usuario)
+            session.commit()
+            session.close()
+            
+            return redirect(url_for("listar_cedulas"))
+        else:
+            return {"mensaje": "El archivo debe ser un CSV"}, 400
+    
+    return render_template("cargar_csv.html")
+
+# Descargar cvs
+@app.route("/descargar_csv", methods=["GET"])
+def descargar_csv():
+    session = SessionLocal()
+    usuarios = session.query(Usuario).all()
+    session.close()
+
+    # Crear el archivo CSV en memoria
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["nombre", "cedula", "info_adicional"])  # Encabezados del CSV
+    for usuario in usuarios:
+        writer.writerow([usuario.nombre, usuario.cedula, usuario.info_adicional])
+
+    output = si.getvalue()
+    si.close()
+
+    # Enviar el archivo CSV como respuesta
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=usuarios.csv"}
+    )
 
 if __name__ == "__main__":
     app.run(debug=True)

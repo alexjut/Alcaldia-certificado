@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+
+{% block title %}Descargar CSV{% endblock %}
+
+{% block content %}
+    <h1>Descargar archivo CSV</h1>
+    <a href="{{ url_for('descargar_csv') }}" class="btn btn-primary">Descargar CSV</a>
+{% endblock %}
