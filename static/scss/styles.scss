@@ -1,0 +1,23 @@
+$primary-color: #3498db;
+$secondary-color: #2ecc71;
+$blanco:white;
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #df2525;
+    color: $blanco;
+}
+
+.navbar {
+    background-color: $primary-color;
+    .nav-link {
+        color: $blanco;
+        &:hover {
+            color: $secondary-color;
+        }
+    }
+}
+
+.container {
+    margin-top: 20px; 
+}

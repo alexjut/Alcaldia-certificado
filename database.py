@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import create_engine, Column, String
+from sqlalchemy import create_engine, Column, String, Integer, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -14,7 +14,15 @@ class Usuario(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     nombre = Column(String)
     cedula = Column(String, unique=True)
-    info_adicional = Column(String)
+    CPS = Column(String)
+    sitio_expedicion = Column(String)
+    objeto = Column(String)
+    vr_inicial_contrato = Column(Integer)
+    valor_mensual_honorarios = Column(Integer)
+    fecha_suscripcion = Column(Date)
+    fecha_inicio = Column(Date)
+    fecha_terminacion = Column(Date)
+    tiempo_ejecucion_dia = Column(Integer)
 
 # Crear las tablas en la base de datos
 Base.metadata.create_all(bind=engine)

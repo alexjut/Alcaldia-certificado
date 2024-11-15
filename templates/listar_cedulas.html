@@ -1,12 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}Listado de Cédulas{% endblock %}
+{% block title %}Listado de Usuarios{% endblock %}
 
 {% block content %}
-<h1>Listado de Cédulas</h1>
+<h1>Listado de Usuarios</h1>
 <ul class="list-group">
-    {% for cedula in cedulas %}
-        <li class="list-group-item">{{ cedula }}</li>
+    {% for usuario in datos_usuarios %}
+        <li class="list-group-item">
+            <strong>Nombre:</strong> {{ usuario.nombre }}<br>
+            <strong>Cédula:</strong> {{ usuario.cedula }}<br>
+            <strong>CPS:</strong> {{ usuario.CPS }}
+        </li>
     {% endfor %}
 </ul>
 {% endblock %}
