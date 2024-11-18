@@ -11,7 +11,11 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia):
+# Configuración de pdfkit
+path_wkhtmltopdf = '/usr/bin/wkhtmltopdf'  # Ruta correcta
+config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
+
+def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligaciones , vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia):
     rendered = render_template(
         'certificado_template.html',
         nombre=nombre,
@@ -19,6 +23,7 @@ def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, vr_inicia
         CPS=CPS,
         sitio_expedicion=sitio_expedicion,
         objeto=objeto,
+        obligaciones=obligaciones,
         vr_inicial_contrato=vr_inicial_contrato,
         valor_mensual_honorarios=valor_mensual_honorarios,
         fecha_suscripcion=fecha_suscripcion,
@@ -27,14 +32,45 @@ def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, vr_inicia
         tiempo_ejecucion_dia=tiempo_ejecucion_dia
     )
     nombre_archivo = f"certificado_{cedula}.pdf"
-    pdfkit.from_string(rendered, nombre_archivo)
+    options = {
+        'enable-local-file-access': None
+    }
+    try:
+        pdfkit.from_string(rendered, nombre_archivo, configuration=config, options=options)
+    except IOError as e:
+        print(f"Error al generar PDF: {e}")
     return nombre_archivo
+
 
 @app.route("/")
 def home():
     return render_template("home.html")
 
-
+@app.route("/preview/<cedula>")
+def preview_certificado(cedula):
+    session = SessionLocal()
+    usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
+    session.close()
+    
+    if usuario:
+        return render_template(
+            'certificado_template.html',
+            nombre=usuario.nombre,
+            cedula=usuario.cedula,
+            CPS=usuario.CPS,
+            sitio_expedicion=usuario.sitio_expedicion,
+            objeto=usuario.objeto,
+            obligaciones=usuario.obligaciones,
+            vr_inicial_contrato=usuario.vr_inicial_contrato,
+            valor_mensual_honorarios=usuario.valor_mensual_honorarios,
+            fecha_suscripcion=usuario.fecha_suscripcion,
+            fecha_inicio=usuario.fecha_inicio,
+            fecha_terminacion=usuario.fecha_terminacion,
+            tiempo_ejecucion_dia=usuario.tiempo_ejecucion_dia
+        )
+    else:
+        return {"mensaje": "Usuario no encontrado"}, 404
+    
 @app.route("/certificado/<cedula>", methods=["GET"])
 def obtener_certificado(cedula):
     session = SessionLocal()
@@ -48,6 +84,7 @@ def obtener_certificado(cedula):
             usuario.CPS,
             usuario.sitio_expedicion,
             usuario.objeto,
+            usuario.obligaciones,
             usuario.vr_inicial_contrato,
             usuario.valor_mensual_honorarios,
             usuario.fecha_suscripcion,
@@ -68,6 +105,7 @@ def crear_datos():
         CPS = request.form["CPS"]
         sitio_expedicion = request.form["sitio_expedicion"]
         objeto = request.form["objeto"]
+        obligaciones = request.form["obligaciones"]
         vr_inicial_contrato = request.form["vr_inicial_contrato"]
         valor_mensual_honorarios = request.form["valor_mensual_honorarios"]
         fecha_suscripcion = datetime.strptime(request.form["fecha_suscripcion"], '%Y-%m-%d').date()
@@ -88,6 +126,7 @@ def crear_datos():
             CPS=CPS,
             sitio_expedicion=sitio_expedicion,
             objeto=objeto,
+            obligaciones=obligaciones,
             vr_inicial_contrato=vr_inicial_contrato,
             valor_mensual_honorarios=valor_mensual_honorarios,
             fecha_suscripcion=fecha_suscripcion,
@@ -124,6 +163,7 @@ def editar_datos(cedula):
         usuario.CPS = request.form["CPS"]
         usuario.sitio_expedicion = request.form["sitio_expedicion"]
         usuario.objeto = request.form["objeto"]
+        usuario.obligaciones = request.form["obligaciones"]
         usuario.vr_inicial_contrato = request.form["vr_inicial_contrato"]
         usuario.valor_mensual_honorarios = request.form["valor_mensual_honorarios"]
         usuario.fecha_suscripcion = datetime.strptime(request.form["fecha_suscripcion"], '%Y-%m-%d').date()
@@ -209,6 +249,7 @@ def cargar_csv():
                     usuario_existente.CPS = row['CPS']
                     usuario_existente.sitio_expedicion = row['sitio_expedicion']
                     usuario_existente.objeto = row['objeto']
+                    usuario_existente.obligaciones = row['obligaciones']
                     usuario_existente.vr_inicial_contrato = row['vr_inicial_contrato']
                     usuario_existente.valor_mensual_honorarios = row['valor_mensual_honorarios']
                     usuario_existente.fecha_suscripcion = parse_date(row['fecha_suscripcion'])
@@ -223,6 +264,7 @@ def cargar_csv():
                         CPS=row['CPS'],
                         sitio_expedicion=row['sitio_expedicion'],
                         objeto=row['objeto'],
+                        obligaciones=row['obligaciones'],
                         vr_inicial_contrato=row['vr_inicial_contrato'],
                         valor_mensual_honorarios=row['valor_mensual_honorarios'],
                         fecha_suscripcion=parse_date(row['fecha_suscripcion']),
@@ -251,7 +293,7 @@ def descargar_csv():
     si = StringIO()
     writer = csv.writer(si)
     writer.writerow([
-        "nombre", "cedula", "CPS", "sitio_expedicion", "objeto", 
+        "nombre", "cedula", "CPS", "sitio_expedicion", "objeto", "obligaciones",
         "vr_inicial_contrato", "valor_mensual_honorarios", 
         "fecha_suscripcion", "fecha_inicio", "fecha_terminacion", 
         "tiempo_ejecucion_dia"
@@ -259,7 +301,7 @@ def descargar_csv():
     for usuario in usuarios:
         writer.writerow([
             usuario.nombre, usuario.cedula, usuario.CPS, usuario.sitio_expedicion, 
-            usuario.objeto, usuario.vr_inicial_contrato, usuario.valor_mensual_honorarios, 
+            usuario.objeto, usuario.obligaciones, usuario.vr_inicial_contrato, usuario.valor_mensual_honorarios, 
             usuario.fecha_suscripcion, usuario.fecha_inicio, usuario.fecha_terminacion, 
             usuario.tiempo_ejecucion_dia
         ])

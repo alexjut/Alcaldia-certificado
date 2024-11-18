@@ -1,0 +1,30 @@
+$color_1: blue;
+$color_2: #954F72;
+$color_3: #00000A;
+$color_4: #605E5C;
+
+.certificado {
+    border: 5px solid #000;
+    padding: 20px;
+    margin: 20px;
+    text-align: center;
+
+    h1 {
+        font-size: 2.5em;
+        margin-bottom: 20px;
+    }
+
+    p {
+        font-size: 1.2em;
+        text-align: justify;
+    }
+
+    .titulo {
+        font-weight: bold;
+        margin-top: 20px;
+    }
+}
+
+
+
+

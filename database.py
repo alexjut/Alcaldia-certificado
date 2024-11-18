@@ -23,6 +23,7 @@ class Usuario(Base):
     fecha_inicio = Column(Date)
     fecha_terminacion = Column(Date)
     tiempo_ejecucion_dia = Column(Integer)
+    obligaciones = Column(String)
 
 # Crear las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
