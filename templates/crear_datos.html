@@ -32,7 +32,7 @@
     </div>
     <div class="form-group">
         <label for="obligaciones">Obligaciones:</label>
-        <input type="text" id="obligaciones" name="obligaciones" class="form-control" required>
+        <textarea id="obligaciones" name="obligaciones" class="form-control" rows="5" required></textarea>
     </div>
     <div class="form-group">
         <label for="vr_inicial_contrato">Valor Inicial del Contrato:</label>
@@ -58,7 +58,14 @@
         <label for="tiempo_ejecucion_dia">Tiempo de Ejecución (días):</label>
         <input type="number" id="tiempo_ejecucion_dia" name="tiempo_ejecucion_dia" class="form-control" required>
     </div>
+    <div class="form-group">
+        <label for="radicado">Radicado:</label>
+        <input type="text" id="radicado" name="radicado" class="form-control" required>
+    </div>
+    <div class="form-group">
+        <label for="año_contrato">Año del Contrato:</label>
+        <input type="number" id="año_contrato" name="año_contrato" class="form-control" min="2021" required>
+    </div>
     <button type="submit" class="btn btn-primary">Guardar Datos</button>
 </form>
 {% endblock %}
-

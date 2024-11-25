@@ -1,5 +1,5 @@
 from flask import Flask, request, send_file, render_template, redirect, url_for
-from database import SessionLocal, Usuario
+from database import SessionLocal, Usuario, Radicado
 import pdfkit
 import pandas as pd
 import os
@@ -19,7 +19,9 @@ app = Flask(__name__)
 path_wkhtmltopdf = '/usr/bin/wkhtmltopdf'  # Ruta correcta
 config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
 
-def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligaciones, vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia, radicado):
+def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligaciones, vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia, radicado, año_contrato):
+    print(f"Generando certificado para radicado: {radicado}")  # Mensaje de depuración
+    
     rendered = render_template(
         'certificado_template.html',
         nombre=nombre,
@@ -34,16 +36,20 @@ def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligacio
         fecha_inicio=fecha_inicio,
         fecha_terminacion=fecha_terminacion,
         tiempo_ejecucion_dia=tiempo_ejecucion_dia,
-        radicado=radicado  # Agregar radicado a la plantilla
+        radicado=radicado,  # Asegúrate de pasar la variable radicado
+        año_contrato=año_contrato
     )
+    
+    print(rendered)  # Imprimir el contenido renderizado para depuración
+    
     nombre_archivo = f"certificado_{cedula}.pdf"
     options = {
         'enable-local-file-access': None,
-        'page-size': 'Letter'  # Especificar tamaño de página carta
+        'page-size': 'Letter'
     }
     try:
         pdfkit.from_string(rendered, nombre_archivo, configuration=config, options=options)
-        numerar_paginas(nombre_archivo)  # Llamar a la función para numerar páginas
+        numerar_paginas(nombre_archivo)
     except IOError as e:
         print(f"Error al generar PDF: {e}")
     return nombre_archivo
@@ -67,6 +73,46 @@ def numerar_paginas(nombre_archivo):
     with open(nombre_archivo, "wb") as output_pdf:
         writer.write(output_pdf)
 
+@app.route("/certificado/<cedula>", methods=["GET"])
+def obtener_certificado(cedula):
+    session = SessionLocal()
+    usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
+    
+    if usuario:
+        print(f"Usuario encontrado: {usuario.nombre}, ID: {usuario.id}")
+        
+        # Usar el campo radicado directamente de la tabla usuarios
+        radicado = usuario.radicado
+        
+        if radicado:
+            print(f"Radicado encontrado: {radicado}")
+            archivo_pdf = generar_certificado(
+                usuario.nombre,
+                usuario.cedula,
+                usuario.CPS,
+                usuario.sitio_expedicion,
+                usuario.objeto,
+                usuario.obligaciones,
+                usuario.vr_inicial_contrato,
+                usuario.valor_mensual_honorarios,
+                usuario.fecha_suscripcion,
+                usuario.fecha_inicio,
+                usuario.fecha_terminacion,
+                usuario.tiempo_ejecucion_dia,
+                radicado,  # Pasar el número de radicado directamente
+                usuario.año_contrato
+            )
+            print(f"Certificado generado: {archivo_pdf}")
+            session.close()
+            return send_file(archivo_pdf, as_attachment=True)
+        else:
+            print("Radicado no encontrado")
+            session.close()
+            return {"mensaje": "Radicado no encontrado"}, 404
+    else:
+        print("Usuario no encontrado")
+        session.close()
+        return {"mensaje": "Usuario no encontrado"}, 404
 
 @app.route("/")
 def home():
@@ -92,40 +138,12 @@ def preview_certificado(cedula):
             fecha_suscripcion=usuario.fecha_suscripcion,
             fecha_inicio=usuario.fecha_inicio,
             fecha_terminacion=usuario.fecha_terminacion,
-            tiempo_ejecucion_dia=usuario.tiempo_ejecucion_dia
+            tiempo_ejecucion_dia=usuario.tiempo_ejecucion_dia,
+            radicado="123456",  # Ejemplo de radicado
+            año_contrato=usuario.año_contrato  # Añadir año del contrato
         )
     else:
         return {"mensaje": "Usuario no encontrado"}, 404
-    
-@app.route("/certificado/<cedula>", methods=["GET"])
-def obtener_certificado(cedula):
-    session = SessionLocal()
-    usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
-    session.close()
-    
-    if usuario:
-        radicado = "123456"  # Esto es solo un ejemplo. Asegúrate de obtener el radicado de la fuente correcta.
-
-        archivo_pdf = generar_certificado(
-            usuario.nombre,
-            usuario.cedula,
-            usuario.CPS,
-            usuario.sitio_expedicion,
-            usuario.objeto,
-            usuario.obligaciones,
-            usuario.vr_inicial_contrato,
-            usuario.valor_mensual_honorarios,
-            usuario.fecha_suscripcion,
-            usuario.fecha_inicio,
-            usuario.fecha_terminacion,
-            usuario.tiempo_ejecucion_dia,
-            radicado  # Pasar el radicado a la función
-        )
-        return send_file(archivo_pdf, as_attachment=True)
-    else:
-        return {"mensaje": "Usuario no encontrado"}, 404
-
-
 
 @app.route("/crear_datos", methods=["GET", "POST"])
 def crear_datos():
@@ -142,6 +160,7 @@ def crear_datos():
         fecha_inicio = datetime.strptime(request.form["fecha_inicio"], '%Y-%m-%d').date()
         fecha_terminacion = datetime.strptime(request.form["fecha_terminacion"], '%Y-%m-%d').date()
         tiempo_ejecucion_dia = request.form["tiempo_ejecucion_dia"]
+        año_contrato = fecha_suscripcion.year  # Obtener el año del contrato
         
         session = SessionLocal()
         usuario_existente = session.query(Usuario).filter(Usuario.cedula == cedula).first()
@@ -162,7 +181,8 @@ def crear_datos():
             fecha_suscripcion=fecha_suscripcion,
             fecha_inicio=fecha_inicio,
             fecha_terminacion=fecha_terminacion,
-            tiempo_ejecucion_dia=tiempo_ejecucion_dia
+            tiempo_ejecucion_dia=tiempo_ejecucion_dia,
+            año_contrato=año_contrato  # Añadir año del contrato
         )
         session.add(nuevo_usuario)
         session.commit()
@@ -178,10 +198,10 @@ def listar_cedulas():
     usuarios = session.query(Usuario).all()
     session.close()
     
-    datos_usuarios = [{"cedula": usuario.cedula, "nombre": usuario.nombre, "CPS": usuario.CPS} for usuario in usuarios]
+    datos_usuarios = [{"cedula": usuario.cedula, "nombre": usuario.nombre, "CPS": usuario.CPS, "año_contrato": usuario.año_contrato} for usuario in usuarios]
     return render_template("listar_cedulas.html", datos_usuarios=datos_usuarios)
 
-#editar datos
+# Editar datos
 
 @app.route("/editar_datos/<cedula>", methods=["GET", "POST"])
 def editar_datos(cedula):
@@ -200,6 +220,15 @@ def editar_datos(cedula):
         usuario.fecha_inicio = datetime.strptime(request.form["fecha_inicio"], '%Y-%m-%d').date()
         usuario.fecha_terminacion = datetime.strptime(request.form["fecha_terminacion"], '%Y-%m-%d').date()
         usuario.tiempo_ejecucion_dia = request.form["tiempo_ejecucion_dia"]
+        usuario.año_contrato = usuario.fecha_suscripcion.year  # Actualizar el año del contrato
+        
+        # Actualizar el radicado en la tabla usuarios si es necesario
+        usuario.radicado = request.form["radicado"]
+        
+        # Actualizar el radicado en la tabla radicados
+        radicado = session.query(Radicado).filter(Radicado.usuario_id == usuario.id).first()
+        if radicado:
+            radicado.numero = request.form["radicado"]
         
         session.commit()
         session.close()
@@ -207,8 +236,6 @@ def editar_datos(cedula):
     
     session.close()
     return render_template("editar_datos.html", usuario=usuario)
-
-
 
 @app.route("/eliminar_datos/<cedula>", methods=["POST"])
 def eliminar_datos(cedula):
@@ -225,9 +252,17 @@ def eliminar_datos(cedula):
 @app.route("/buscar_certificado", methods=["GET", "POST"])
 def buscar_certificado():
     if request.method == "POST":
-        cedula = request.form["cedula"]
+        cedula = request.form.get("cedula")
+        año = request.form.get("año")
         session = SessionLocal()
-        usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
+        
+        query = session.query(Usuario)
+        if cedula:
+            query = query.filter(Usuario.cedula == cedula)
+        if año:
+            query = query.filter(Usuario.año_contrato == año)
+        
+        usuario = query.first()
         session.close()
         
         if usuario:
@@ -237,16 +272,13 @@ def buscar_certificado():
     
     return render_template("buscar_cert.html")
 
-
 # Crear la carpeta 'uploads' si no existe
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
 from datetime import datetime
 
-from datetime import datetime
-
 def parse_date(date_str):
-    for fmt in ('%Y-%m-%d', '%d/%m/%Y'):
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
         try:
             return datetime.strptime(date_str, fmt).date()
         except ValueError:
@@ -286,6 +318,7 @@ def cargar_csv():
                     usuario_existente.fecha_inicio = parse_date(row['fecha_inicio'])
                     usuario_existente.fecha_terminacion = parse_date(row['fecha_terminacion'])
                     usuario_existente.tiempo_ejecucion_dia = row['tiempo_ejecucion_dia']
+                    usuario_existente.año_contrato = usuario_existente.fecha_suscripcion.year  # Actualizar año del contrato
                 else:
                     # Crear nuevo usuario
                     nuevo_usuario = Usuario(
@@ -300,7 +333,8 @@ def cargar_csv():
                         fecha_suscripcion=parse_date(row['fecha_suscripcion']),
                         fecha_inicio=parse_date(row['fecha_inicio']),
                         fecha_terminacion=parse_date(row['fecha_terminacion']),
-                        tiempo_ejecucion_dia=row['tiempo_ejecucion_dia']
+                        tiempo_ejecucion_dia=row['tiempo_ejecucion_dia'],
+                        año_contrato=parse_date(row['fecha_suscripcion']).year  # Añadir año del contrato
                     )
                     session.add(nuevo_usuario)
             session.commit()
@@ -311,7 +345,6 @@ def cargar_csv():
             return {"mensaje": "El archivo debe ser un CSV"}, 400
     
     return render_template("cargar_csv.html")
-
 
 @app.route("/descargar_csv", methods=["GET"])
 def descargar_csv():
@@ -326,14 +359,14 @@ def descargar_csv():
         "nombre", "cedula", "CPS", "sitio_expedicion", "objeto", "obligaciones",
         "vr_inicial_contrato", "valor_mensual_honorarios", 
         "fecha_suscripcion", "fecha_inicio", "fecha_terminacion", 
-        "tiempo_ejecucion_dia"
+        "tiempo_ejecucion_dia", "año_contrato"  # Añadir encabezado para año del contrato
     ])  # Encabezados del CSV
     for usuario in usuarios:
         writer.writerow([
             usuario.nombre, usuario.cedula, usuario.CPS, usuario.sitio_expedicion, 
             usuario.objeto, usuario.obligaciones, usuario.vr_inicial_contrato, usuario.valor_mensual_honorarios, 
             usuario.fecha_suscripcion, usuario.fecha_inicio, usuario.fecha_terminacion, 
-            usuario.tiempo_ejecucion_dia
+            usuario.tiempo_ejecucion_dia, usuario.año_contrato  # Añadir año del contrato
         ])
 
     output = si.getvalue()

@@ -6,7 +6,9 @@
 <h1>Resultado de Búsqueda</h1>
 {% if usuario %}
     <div class="alert alert-success" role="alert">
-        Usuario encontrado: {{ usuario.nombre }} (Cédula: {{ usuario.cedula }})
+        Usuario encontrado: {{ usuario.nombre }} (Cédula: {{ usuario.cedula }})<br>
+        <strong>Año del Contrato:</strong> {{ usuario.año_contrato }}<br>
+        <strong>Radicado:</strong> {{ usuario.radicado }}
     </div>
     <a href="{{ url_for('obtener_certificado', cedula=usuario.cedula) }}" class="btn btn-primary">Crear Certificado</a>
 {% elif mensaje %}
