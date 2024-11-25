@@ -8,6 +8,10 @@ from datetime import datetime
 from io import StringIO
 from flask import Response
 from werkzeug.utils import secure_filename
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
 
 app = Flask(__name__)
 
@@ -15,7 +19,7 @@ app = Flask(__name__)
 path_wkhtmltopdf = '/usr/bin/wkhtmltopdf'  # Ruta correcta
 config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
 
-def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligaciones , vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia):
+def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligaciones, vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia, radicado):
     rendered = render_template(
         'certificado_template.html',
         nombre=nombre,
@@ -29,17 +33,39 @@ def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligacio
         fecha_suscripcion=fecha_suscripcion,
         fecha_inicio=fecha_inicio,
         fecha_terminacion=fecha_terminacion,
-        tiempo_ejecucion_dia=tiempo_ejecucion_dia
+        tiempo_ejecucion_dia=tiempo_ejecucion_dia,
+        radicado=radicado  # Agregar radicado a la plantilla
     )
     nombre_archivo = f"certificado_{cedula}.pdf"
     options = {
-        'enable-local-file-access': None
+        'enable-local-file-access': None,
+        'page-size': 'Letter'  # Especificar tamaño de página carta
     }
     try:
         pdfkit.from_string(rendered, nombre_archivo, configuration=config, options=options)
+        numerar_paginas(nombre_archivo)  # Llamar a la función para numerar páginas
     except IOError as e:
         print(f"Error al generar PDF: {e}")
     return nombre_archivo
+
+def numerar_paginas(nombre_archivo):
+    reader = PdfReader(nombre_archivo)
+    writer = PdfWriter()
+
+    for i in range(len(reader.pages)):
+        page = reader.pages[i]
+        packet = BytesIO()
+        can = canvas.Canvas(packet, pagesize=letter)
+        can.drawString(500, 10, f"Página {i + 1}")  # Posición del número de página
+        can.save()
+
+        packet.seek(0)
+        new_pdf = PdfReader(packet)
+        page.merge_page(new_pdf.pages[0])
+        writer.add_page(page)
+
+    with open(nombre_archivo, "wb") as output_pdf:
+        writer.write(output_pdf)
 
 
 @app.route("/")
@@ -78,6 +104,8 @@ def obtener_certificado(cedula):
     session.close()
     
     if usuario:
+        radicado = "123456"  # Esto es solo un ejemplo. Asegúrate de obtener el radicado de la fuente correcta.
+
         archivo_pdf = generar_certificado(
             usuario.nombre,
             usuario.cedula,
@@ -90,11 +118,13 @@ def obtener_certificado(cedula):
             usuario.fecha_suscripcion,
             usuario.fecha_inicio,
             usuario.fecha_terminacion,
-            usuario.tiempo_ejecucion_dia
+            usuario.tiempo_ejecucion_dia,
+            radicado  # Pasar el radicado a la función
         )
         return send_file(archivo_pdf, as_attachment=True)
     else:
         return {"mensaje": "Usuario no encontrado"}, 404
+
 
 
 @app.route("/crear_datos", methods=["GET", "POST"])

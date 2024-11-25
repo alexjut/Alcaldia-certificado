@@ -1,6 +1,7 @@
 $primary-color: #3498db;
 $secondary-color: #2ecc71;
 $blanco:white;
+$negro:#090909;
 
 body {
     font-family: Arial, sans-serif;
@@ -17,7 +18,13 @@ body {
         }
     }
 }
+ 
+.list-group{
+    li{
+        color: $negro;
+    }
 
+} 
 .container {
     margin-top: 20px; 
 }
