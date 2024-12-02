@@ -1,11 +1,11 @@
-$primary-color: #3498db;
-$secondary-color: #2ecc71;
+$primary-color: #7fdb34;
+$secondary-color: #cc952e;
 $blanco:white;
 $negro:#090909;
 
 body {
     font-family: Arial, sans-serif;
-    background-color: #df2525;
+    background-color:$secondary-color;
     color: $blanco;
 }
 
@@ -28,3 +28,4 @@ body {
 .container {
     margin-top: 20px; 
 }
+

@@ -12,11 +12,74 @@ from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'alexjut1030'
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'register'
+
+def roles_required(*roles):
+    def wrapper(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if current_user.role not in roles:
+                return redirect(url_for('unauthorized'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return wrapper
+
+@login_manager.user_loader
+def load_user(user_id):
+    session = SessionLocal()
+    return session.query(Usuario).get(user_id)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        cedula = request.form['cedula']
+        password = request.form['password']
+        session = SessionLocal()
+        user = session.query(Usuario).filter_by(cedula=cedula).first()
+        session.close()
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for('home'))
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        nombre = request.form['nombre']
+        cedula = request.form['cedula']
+        password = generate_password_hash(request.form['password'])
+        role = request.form['role']
+        new_user = Usuario(nombre=nombre, cedula=cedula, password=password, role=role)
+        session = SessionLocal()
+        session.add(new_user)
+        session.commit()
+        session.close()
+        return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/admin')
+@login_required
+
+def admin_dashboard():
+    return render_template('admin_dashboard.html')
 
 # Configuración de pdfkit
-path_wkhtmltopdf = '/usr/bin/wkhtmltopdf'  # Ruta correcta
+path_wkhtmltopdf = '/usr/bin/wkhtmltopdf'
 config = pdfkit.configuration(wkhtmltopdf=path_wkhtmltopdf)
 
 def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligaciones, vr_inicial_contrato, valor_mensual_honorarios, fecha_suscripcion, fecha_inicio, fecha_terminacion, tiempo_ejecucion_dia, radicado, año_contrato):
@@ -57,23 +120,21 @@ def generar_certificado(nombre, cedula, CPS, sitio_expedicion, objeto, obligacio
 def numerar_paginas(nombre_archivo):
     reader = PdfReader(nombre_archivo)
     writer = PdfWriter()
-
     for i in range(len(reader.pages)):
         page = reader.pages[i]
         packet = BytesIO()
         can = canvas.Canvas(packet, pagesize=letter)
         can.drawString(500, 10, f"Página {i + 1}")  # Posición del número de página
         can.save()
-
         packet.seek(0)
         new_pdf = PdfReader(packet)
         page.merge_page(new_pdf.pages[0])
         writer.add_page(page)
-
     with open(nombre_archivo, "wb") as output_pdf:
         writer.write(output_pdf)
 
 @app.route("/certificado/<cedula>", methods=["GET"])
+@login_required
 def obtener_certificado(cedula):
     session = SessionLocal()
     usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
@@ -115,10 +176,12 @@ def obtener_certificado(cedula):
         return {"mensaje": "Usuario no encontrado"}, 404
 
 @app.route("/")
+@login_required
 def home():
     return render_template("home.html")
 
 @app.route("/preview/<cedula>")
+@login_required
 def preview_certificado(cedula):
     session = SessionLocal()
     usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
@@ -145,7 +208,10 @@ def preview_certificado(cedula):
     else:
         return {"mensaje": "Usuario no encontrado"}, 404
 
+
 @app.route("/crear_datos", methods=["GET", "POST"])
+@login_required
+@roles_required('admin', 'creator')
 def crear_datos():
     if request.method == "POST":
         nombre = request.form["nombre"]
@@ -192,7 +258,12 @@ def crear_datos():
     
     return render_template("crear_datos.html")
 
+@app.route('/unauthorized')
+def unauthorized():
+    return "No tienes permiso para acceder a esta página.", 403
+
 @app.route("/listar_cedulas", methods=["GET"])
+@login_required
 def listar_cedulas():
     session = SessionLocal()
     usuarios = session.query(Usuario).all()
@@ -201,9 +272,9 @@ def listar_cedulas():
     datos_usuarios = [{"cedula": usuario.cedula, "nombre": usuario.nombre, "CPS": usuario.CPS, "año_contrato": usuario.año_contrato} for usuario in usuarios]
     return render_template("listar_cedulas.html", datos_usuarios=datos_usuarios)
 
-# Editar datos
 
 @app.route("/editar_datos/<cedula>", methods=["GET", "POST"])
+@login_required
 def editar_datos(cedula):
     session = SessionLocal()
     usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
@@ -238,6 +309,7 @@ def editar_datos(cedula):
     return render_template("editar_datos.html", usuario=usuario)
 
 @app.route("/eliminar_datos/<cedula>", methods=["POST"])
+@login_required
 def eliminar_datos(cedula):
     session = SessionLocal()
     usuario = session.query(Usuario).filter(Usuario.cedula == cedula).first()
@@ -250,6 +322,7 @@ def eliminar_datos(cedula):
     return redirect(url_for("buscar_certificado"))
 
 @app.route("/buscar_certificado", methods=["GET", "POST"])
+@login_required
 def buscar_certificado():
     if request.method == "POST":
         cedula = request.form.get("cedula")
@@ -275,7 +348,6 @@ def buscar_certificado():
 # Crear la carpeta 'uploads' si no existe
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
-from datetime import datetime
 
 def parse_date(date_str):
     for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
@@ -286,6 +358,8 @@ def parse_date(date_str):
     raise ValueError(f"No se pudo convertir la fecha: {date_str}")
 
 @app.route("/cargar_csv", methods=["GET", "POST"])
+@login_required
+@roles_required('admin', 'creator')
 def cargar_csv():
     if request.method == "POST":
         if 'file' not in request.files:
@@ -347,11 +421,12 @@ def cargar_csv():
     return render_template("cargar_csv.html")
 
 @app.route("/descargar_csv", methods=["GET"])
+@login_required
+@roles_required('admin', 'viewer')
 def descargar_csv():
     session = SessionLocal()
     usuarios = session.query(Usuario).all()
     session.close()
-
     # Crear el archivo CSV en memoria
     si = StringIO()
     writer = csv.writer(si)
@@ -368,10 +443,8 @@ def descargar_csv():
             usuario.fecha_suscripcion, usuario.fecha_inicio, usuario.fecha_terminacion, 
             usuario.tiempo_ejecucion_dia, usuario.año_contrato  # Añadir año del contrato
         ])
-
     output = si.getvalue()
     si.close()
-
     # Enviar el archivo CSV como respuesta
     return Response(
         output,
